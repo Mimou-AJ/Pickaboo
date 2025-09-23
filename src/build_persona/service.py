@@ -5,6 +5,7 @@ from ..auth.service import get_current_user
 from ..auth.models import TokenData
 from fastapi import Depends
 
+
 class PersonaService:
     def __init__(self, session: DbSession):
         self.session = session
@@ -13,8 +14,7 @@ class PersonaService:
         persona = Persona(
             user_id=user.user_id,
             occasion=request.occasion,
-            budget=request.budget,
-            age_range=request.age_range,
+            age=request.age,  # updated: replaced age_range
             gender=request.gender,
             relationship=request.relationship
         )
@@ -22,6 +22,7 @@ class PersonaService:
         self.session.commit()
         self.session.refresh(persona)
         return PersonaResponse.from_orm(persona)
+
 
 def get_persona_service(session: DbSession) -> PersonaService:
     return PersonaService(session)
