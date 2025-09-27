@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+import os
 from .database.core import engine, Base
 from .entities.user import User  # Import models to register them
 from .build_persona.entity import Persona # Import models to register them
@@ -11,9 +12,8 @@ configure_logging(LogLevels.info)
 
 app = FastAPI()
 
-""" Only uncomment below to create new tables, 
-otherwise the tests will fail if not connected
-"""
-Base.metadata.create_all(bind=engine)
+# Create tables only when explicitly enabled to avoid DB connection issues during tests
+if os.getenv("ENABLE_DB_INIT", "false").lower() == "true":
+    Base.metadata.create_all(bind=engine)
 
 register_routes(app)

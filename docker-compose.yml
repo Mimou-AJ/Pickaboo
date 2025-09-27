@@ -5,9 +5,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - ./.env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/cleanfastapi
-      - HF_TOKEN=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
+      - DATABASE_URL=${DATABASE_URL}
+      - HF_TOKEN=${HF_TOKEN}
     depends_on:
       - db
     volumes:
@@ -16,10 +18,12 @@ services:
 
   db:
     image: postgres:17
+    env_file:
+      - ./.env
     environment:
-      - POSTGRES_DB=cleanfastapi
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

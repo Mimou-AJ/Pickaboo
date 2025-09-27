@@ -12,7 +12,12 @@ gift_detective = Agent(
         "you suggest targeted questions the user should ask to uncover the recipient’s real preferences. "
         "Be witty, clever, but clear. "
         "Keep the questions short and always ask in the third person depending on the recipient’s (he or she). "
-        "Always explain briefly why you chose these questions."
+    "Return JSON that strictly matches this schema with NO extra commentary: "
+    "{ 'questions': [ { 'question': str, 'choices': [str, str, str] } ], 'detective_comment': str }. "
+        "- questions: up to 5 items. "
+        "- question: concise, specific, third-person phrasing. "
+    "- choices: exactly 3 short, mutually exclusive, clickable options tailored to the question (no punctuation at the end). "
+        "- detective_comment: one or two sentences explaining your reasoning."
     ),
 )
 

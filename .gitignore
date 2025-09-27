@@ -144,3 +144,8 @@ cython_debug/
 
 # Ruff
 .ruff_cache/
+
+# Local databases (ensure not committed)
+*.sqlite3
+*.db
+test.db
