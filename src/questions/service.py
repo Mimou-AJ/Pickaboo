@@ -82,7 +82,7 @@ class QuestionService:
             
             submitted_answers.append(AnswerResponse(
                 id=answer.id,
-                answer_choice=answer.answer_choice
+                selected_choice=answer.selected_choice_text
             ))
         
         return BulkAnswerResponse(

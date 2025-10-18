@@ -11,13 +11,13 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-@router.get("/personas/{persona_id}/questions/next", response_model=List[SuggestedQuestion])
-def get_next_question(
+@router.get("/personas/{persona_id}/questions", response_model=List[SuggestedQuestion])
+def get_questions(
     persona_id: uuid.UUID,
     service: QuestionService = Depends(get_question_service),
     current_user: User = Depends(get_current_user),
 ):
-    return service.get_next_question(persona_id)
+    return service.get_questions(persona_id)
 
 @router.post("/questions/answers", status_code=status.HTTP_201_CREATED, response_model=BulkAnswerResponse)
 def submit_answers(

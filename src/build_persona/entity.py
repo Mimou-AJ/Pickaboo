@@ -33,6 +33,13 @@ class Relationship(str, enum.Enum):
     other = "other"
 
 
+class BudgetRange(str, enum.Enum):
+    under_25 = "under_25"      # Less than 25€
+    range_25_50 = "25-50"      # 25-50€
+    range_50_100 = "50-100"    # 50-100€
+    over_100 = "over_100"      # More than 100€
+
+
 class Persona(Base):
     __tablename__ = 'personas'
 
@@ -40,8 +47,9 @@ class Persona(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     occasion = Column(Enum(Occasion), nullable=False)
 
-    # Updated: removed budget, replaced age_range with integer age
+    # Updated: removed age_range, added budget back as enum
     age = Column(Integer, nullable=False)
+    budget = Column(Enum(BudgetRange), nullable=True)  # e.g., "under_25", "25-50", "50-100", "over_100"
 
     gender = Column(Enum(Gender), nullable=True)
     relationship = Column(Enum(Relationship), nullable=False)

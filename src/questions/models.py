@@ -21,7 +21,7 @@ class BulkAnswerRequest(BaseModel):
 
 class AnswerResponse(BaseModel):
     id: UUID
-    answer_choice: AnswerChoice
+    selected_choice: str  # Return the actual choice text selected by user
 
     class Config:
         from_attributes = True

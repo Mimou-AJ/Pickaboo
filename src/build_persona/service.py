@@ -15,6 +15,7 @@ class PersonaService:
             user_id=user.user_id,
             occasion=request.occasion,
             age=request.age,  # updated: replaced age_range
+            budget=request.budget,
             gender=request.gender,
             relationship=request.relationship
         )
