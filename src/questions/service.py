@@ -1,7 +1,6 @@
 from ..database.core import DbSession
 from ..build_persona.entity import Persona
 from .entity import Question, Answer
-from .answer_choice import AnswerChoice
 from .models import QuestionResponse, AnswerResponse, BulkAnswerRequest, BulkAnswerResponse
 import uuid
 from typing import List, Dict
@@ -15,14 +14,26 @@ class QuestionService:
     def __init__(self, session):
         self.session = session
 
-    def get_next_question(self, persona_id: uuid.UUID) -> List[Dict]:
+    def get_questions(self, persona_id: uuid.UUID) -> List[Dict]:
         persona = self.session.query(Persona).filter(Persona.id == persona_id).one()
+
+        # Format budget for display
+        budget_display = None
+        if persona.budget:
+            budget_map = {
+                "under_25": "Under 25€",
+                "25-50": "25-50€",
+                "50-100": "50-100€",
+                "over_100": "Over 100€"
+            }
+            budget_display = budget_map.get(persona.budget.value, persona.budget.value)
 
         deps = GiftDependencies(
             age=persona.age,
             gender=persona.gender.value if persona.gender else "unknown",
             occasion=persona.occasion.value,
             relationship=persona.relationship.value,
+            budget=budget_display,
         )
 
         result = asyncio.run(
@@ -50,6 +61,10 @@ class QuestionService:
 
         return items
 
+    def get_next_question(self, persona_id: uuid.UUID) -> List[Dict]:
+        """Backward-compatible alias for get_questions."""
+        return self.get_questions(persona_id)
+
     def submit_bulk_answers(self, request: BulkAnswerRequest) -> BulkAnswerResponse:
         """Submit multiple answers for different questions in one operation"""
         submitted_answers = []
@@ -60,20 +75,12 @@ class QuestionService:
             if not question:
                 continue  # Skip invalid question IDs
             
-            # Get the selected choice text and map to position-based enum
+            # Get the selected choice text
             selected_text = answer_item.answer_choice
-            choice_index = 0
-            if question.choices and selected_text in question.choices:
-                choice_index = question.choices.index(selected_text)
-            
-            # Map choice index to enum (0->yes, 1->probably, 2->probably_not, 3->no, default->yes)
-            choice_mapping = [AnswerChoice.yes, AnswerChoice.probably, AnswerChoice.probably_not, AnswerChoice.no]
-            enum_choice = choice_mapping[choice_index] if choice_index < len(choice_mapping) else AnswerChoice.yes
             
             # Create and save the answer
             answer = Answer(
                 question_id=answer_item.question_id,
-                answer_choice=enum_choice,
                 selected_choice_text=selected_text
             )
             self.session.add(answer)

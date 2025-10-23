@@ -3,7 +3,6 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from src.questions.entity import Question, Answer
-from src.questions.answer_choice import AnswerChoice
 
 
 class TestQuestionEntity:
@@ -42,15 +41,15 @@ class TestAnswerEntity:
     def test_answer_creation(self):
         """Test creating an Answer instance"""
         question_id = uuid4()
-        answer_choice = AnswerChoice.yes
+        selected_text = "Yes, definitely"
         
         answer = Answer(
             question_id=question_id,
-            answer_choice=answer_choice
+            selected_choice_text=selected_text
         )
         
         assert answer.question_id == question_id
-        assert answer.answer_choice == answer_choice
+        assert answer.selected_choice_text == selected_text
         assert answer.id is None  # Not set until saved to DB
         assert answer.created_at is None  # Not set until saved to DB
 
@@ -58,50 +57,22 @@ class TestAnswerEntity:
         """Test Answer string representation"""
         answer = Answer(
             question_id=uuid4(),
-            answer_choice=AnswerChoice.probably
+            selected_choice_text="Probably"
         )
         
         repr_str = repr(answer)
         assert "Answer" in repr_str
-        assert "probably" in repr_str
 
-    def test_all_answer_choices(self):
-        """Test all available answer choices"""
-        choices = [AnswerChoice.yes, AnswerChoice.probably, AnswerChoice.probably_not, AnswerChoice.no]
+    def test_different_answer_texts(self):
+        """Test various answer choice texts"""
+        choices = ["Indoor activities", "Gaming", "Reading books", "Tech gadgets"]
         
-        for choice in choices:
+        for choice_text in choices:
             answer = Answer(
                 question_id=uuid4(),
-                answer_choice=choice
+                selected_choice_text=choice_text
             )
-            assert answer.answer_choice == choice
-
-
-class TestAnswerChoice:
-    """Test the AnswerChoice enum"""
-    
-    def test_answer_choice_values(self):
-        """Test that AnswerChoice has the expected values"""
-        assert AnswerChoice.yes.value == "yes"
-        assert AnswerChoice.probably.value == "probably"
-        assert AnswerChoice.probably_not.value == "probably_not"
-        assert AnswerChoice.no.value == "no"
-
-    def test_answer_choice_string_behavior(self):
-        """Test that AnswerChoice behaves as a string enum"""
-        # Should be able to compare with strings
-        assert AnswerChoice.yes == "yes"
-        assert AnswerChoice.probably == "probably"
-        assert AnswerChoice.probably_not == "probably_not"
-        assert AnswerChoice.no == "no"
-
-    def test_answer_choice_iteration(self):
-        """Test iterating over AnswerChoice values"""
-        choices = list(AnswerChoice)
-        expected = [AnswerChoice.yes, AnswerChoice.probably, AnswerChoice.probably_not, AnswerChoice.no]
-        
-        assert len(choices) == 4
-        assert all(choice in expected for choice in choices)
+            assert answer.selected_choice_text == choice_text
 
 
 @pytest.mark.skip(reason="SQLite doesn't support PostgreSQL UUID columns - use PostgreSQL for integration tests")
@@ -111,22 +82,9 @@ class TestDatabaseIntegration:
     def test_question_database_operations(self, db_session):
         """Test saving and retrieving questions from database"""
         from src.build_persona.entity import Persona, Occasion, Gender, Relationship
-        from src.entities.user import User
         
-        # Create a user first
-        user = User(
-            email="test@example.com",
-            first_name="Test",
-            last_name="User",
-            password_hash="fake_hash"
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
-        
-        # Create a persona
+        # Create a persona (without user)
         persona = Persona(
-            user_id=user.id,
             occasion=Occasion.birthday,
             age=25,
             gender=Gender.male,
@@ -159,21 +117,9 @@ class TestDatabaseIntegration:
     def test_answer_database_operations(self, db_session):
         """Test saving and retrieving answers from database"""
         from src.build_persona.entity import Persona, Occasion, Gender, Relationship
-        from src.entities.user import User
         
-        # Create user and persona (setup)
-        user = User(
-            email="test2@example.com",
-            first_name="Test",
-            last_name="User2",
-            password_hash="fake_hash"
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
-        
+        # Create persona (without user)
         persona = Persona(
-            user_id=user.id,
             occasion=Occasion.christmas,
             age=30,
             gender=Gender.female,
@@ -195,7 +141,7 @@ class TestDatabaseIntegration:
         # Create and save answer
         answer = Answer(
             question_id=question.id,
-            answer_choice=AnswerChoice.probably
+            selected_choice_text="Probably"
         )
         db_session.add(answer)
         db_session.commit()
@@ -205,31 +151,19 @@ class TestDatabaseIntegration:
         assert answer.id is not None
         assert answer.created_at is not None
         assert answer.question_id == question.id
-        assert answer.answer_choice == AnswerChoice.probably
+        assert answer.selected_choice_text == "Probably"
         
         # Retrieve answer from database
         retrieved_answer = db_session.query(Answer).filter(Answer.id == answer.id).first()
         assert retrieved_answer is not None
-        assert retrieved_answer.answer_choice == AnswerChoice.probably
+        assert retrieved_answer.selected_choice_text == "Probably"
 
     def test_question_persona_relationship(self, db_session):
         """Test the relationship between questions and personas"""
         from src.build_persona.entity import Persona, Occasion, Gender, Relationship
-        from src.entities.user import User
         
-        # Setup user and persona
-        user = User(
-            email="test3@example.com",
-            first_name="Test",
-            last_name="User3",
-            password_hash="fake_hash"
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
-        
+        # Create persona (without user)
         persona = Persona(
-            user_id=user.id,
             occasion=Occasion.graduation,
             age=22,
             relationship=Relationship.sibling

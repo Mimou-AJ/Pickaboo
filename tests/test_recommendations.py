@@ -5,7 +5,6 @@ from src.recommendations.service import RecommendationService
 from src.recommendations.models import RecommendationRequest, PersonaProfile, QuestionInsight
 from src.build_persona.entity import Persona, Gender, Occasion, Relationship
 from src.questions.entity import Question, Answer
-from src.questions.answer_choice import AnswerChoice
 
 class TestRecommendationService:
     """Test the recommendation service functionality"""
@@ -38,7 +37,6 @@ class TestRecommendationService:
         
         a1 = Mock(spec=Answer)
         a1.selected_choice_text = "Gaming"
-        a1.answer_choice = AnswerChoice.yes
         
         q2 = Mock(spec=Question)
         q2.question_text = "What's your preferred style?"
@@ -46,7 +44,6 @@ class TestRecommendationService:
         
         a2 = Mock(spec=Answer)
         a2.selected_choice_text = "Casual"
-        a2.answer_choice = AnswerChoice.probably
         
         return [(q1, a1), (q2, a2)]
     

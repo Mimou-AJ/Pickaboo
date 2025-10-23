@@ -1,6 +1,5 @@
 from pydantic import BaseModel, field_validator
 from uuid import UUID
-from .answer_choice import AnswerChoice
 
 class QuestionResponse(BaseModel):
     id: UUID
@@ -8,9 +7,6 @@ class QuestionResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class AnswerRequest(BaseModel):
-    answer_choice: AnswerChoice
 
 class QuestionAnswerItem(BaseModel):
     question_id: UUID

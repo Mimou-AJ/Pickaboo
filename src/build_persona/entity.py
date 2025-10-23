@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, Integer
+from sqlalchemy import Column, DateTime, ForeignKey, Enum, Integer
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime, timezone
@@ -44,10 +44,9 @@ class Persona(Base):
     __tablename__ = 'personas'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     occasion = Column(Enum(Occasion), nullable=False)
 
-    # Updated: removed age_range, added budget back as enum
+    # Updated: removed age_range, added budget back as enum, removed user_id foreign key
     age = Column(Integer, nullable=False)
     budget = Column(Enum(BudgetRange), nullable=True)  # e.g., "under_25", "25-50", "50-100", "over_100"
 

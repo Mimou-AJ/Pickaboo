@@ -6,22 +6,12 @@ from fastapi import status
 
 from src.questions.controller import router
 from src.questions.models import SuggestedQuestion
-from src.entities.user import User
 
 
 @pytest.fixture
 def mock_question_service():
     """Mock QuestionService for controller tests"""
     return Mock()
-
-
-@pytest.fixture
-def mock_current_user():
-    """Mock authenticated user"""
-    user = Mock(spec=User)
-    user.id = uuid4()
-    user.email = "test@example.com"
-    return user
 
 
 @pytest.fixture
@@ -44,22 +34,20 @@ def sample_questions_response():
 @pytest.mark.skip(reason="Controller tests require PostgreSQL for UUID support - SQLite doesn't support UUID columns")
 class TestQuestionsController:
     
-    @patch('src.questions.controller.get_current_user')
     @patch('src.questions.controller.get_question_service')
     def test_get_next_question_success(
-        self, mock_get_service, mock_get_user, mock_question_service, 
-        mock_current_user, sample_questions_response, client
+        self, mock_get_service, mock_question_service, 
+        sample_questions_response, client
     ):
         """Test successful retrieval of next questions"""
         # Setup mocks
         mock_get_service.return_value = mock_question_service
-        mock_get_user.return_value = mock_current_user
-        mock_question_service.get_next_question.return_value = sample_questions_response
+        mock_question_service.get_questions.return_value = sample_questions_response
         
         persona_id = uuid4()
         
         # Make request
-        response = client.get(f"/personas/{persona_id}/questions/next")
+        response = client.get(f"/personas/{persona_id}/questions")
         
         # Verify response
         assert response.status_code == status.HTTP_200_OK
@@ -80,73 +68,57 @@ class TestQuestionsController:
         assert second_question["choices"] == ["Practical", "Creative", "Balanced mix"]
         
         # Verify service was called correctly
-        mock_question_service.get_next_question.assert_called_once_with(persona_id)
+        mock_question_service.get_questions.assert_called_once_with(persona_id)
 
-    @patch('src.questions.controller.get_current_user')
     @patch('src.questions.controller.get_question_service')
     def test_get_next_question_empty_response(
-        self, mock_get_service, mock_get_user, mock_question_service, 
-        mock_current_user, client
+        self, mock_get_service, mock_question_service, 
+        client
     ):
         """Test when service returns no questions"""
         # Setup mocks
         mock_get_service.return_value = mock_question_service
-        mock_get_user.return_value = mock_current_user
-        mock_question_service.get_next_question.return_value = []
+        mock_question_service.get_questions.return_value = []
         
         persona_id = uuid4()
         
         # Make request
-        response = client.get(f"/personas/{persona_id}/questions/next")
+        response = client.get(f"/personas/{persona_id}/questions")
         
         # Verify response
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data == []
 
-    @patch('src.questions.controller.get_current_user')
     @patch('src.questions.controller.get_question_service')
     def test_get_next_question_invalid_persona_id(
-        self, mock_get_service, mock_get_user, mock_question_service, 
-        mock_current_user, client
+        self, mock_get_service, mock_question_service, 
+        client
     ):
         """Test with invalid persona ID format"""
         # Setup mocks
         mock_get_service.return_value = mock_question_service
-        mock_get_user.return_value = mock_current_user
         
         # Make request with invalid UUID
-        response = client.get("/personas/invalid-uuid/questions/next")
+        response = client.get("/personas/invalid-uuid/questions")
         
         # Should return 422 for invalid UUID format
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_get_next_question_unauthenticated(self, client):
-        """Test endpoint without authentication"""
-        persona_id = uuid4()
-        
-        # Make request without auth headers
-        response = client.get(f"/personas/{persona_id}/questions/next")
-        
-        # Should return 401 or 403 depending on auth implementation
-        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
-
-    @patch('src.questions.controller.get_current_user')
     @patch('src.questions.controller.get_question_service')
     def test_get_next_question_service_exception(
-        self, mock_get_service, mock_get_user, mock_question_service, 
-        mock_current_user, client
+        self, mock_get_service, mock_question_service, 
+        client
     ):
         """Test when service raises an exception"""
         # Setup mocks
         mock_get_service.return_value = mock_question_service
-        mock_get_user.return_value = mock_current_user
-        mock_question_service.get_next_question.side_effect = Exception("Database error")
+        mock_question_service.get_questions.side_effect = Exception("Database error")
         
         persona_id = uuid4()
         
         # Make request
-        response = client.get(f"/personas/{persona_id}/questions/next")
+        response = client.get(f"/personas/{persona_id}/questions")
         
         # Should return 500 for internal server error
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

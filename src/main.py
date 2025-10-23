@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 import os
 from .database.core import engine, Base
-from .entities.user import User  # Import models to register them
 from .build_persona.entity import Persona # Import models to register them
 from .questions.entity import Question, Answer # Import models to register them
 from .api import register_routes

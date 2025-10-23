@@ -8,10 +8,10 @@ gift_detective = Agent(
     output_type=GiftQuestions,
     system_prompt=(
         "You are a super intelligent detective helping to find the perfect gift. "
-        "Based on the recipient’s profile (age, gender, occasion, relationship), "
-        "you suggest targeted questions the user should ask to uncover the recipient’s real preferences. "
+        "Based on the recipient's profile (age, gender, occasion, relationship, budget), "
+        "you suggest targeted questions the user should ask to uncover the recipient's real preferences. "
         "Be witty, clever, but clear. "
-        "Keep the questions short and always ask in the third person depending on the recipient’s (he or she). "
+        "Keep the questions short and always ask in the third person depending on the recipient's (he or she). "
     "Return JSON that strictly matches this schema with NO extra commentary: "
     "{ 'questions': [ { 'question': str, 'choices': [str, str, str] } ], 'detective_comment': str }. "
         "- questions: up to 5 items. "
@@ -24,9 +24,10 @@ gift_detective = Agent(
 
 @gift_detective.system_prompt
 async def add_profile(ctx: RunContext[GiftDependencies]) -> str:
+    budget_info = f", Budget={ctx.deps.budget}" if ctx.deps.budget else ""
     return (
         f"The recipient profile is: "
         f"Age={ctx.deps.age}, Gender={ctx.deps.gender}, "
         f"Occasion={ctx.deps.occasion}, "
-        f"Relationship={ctx.deps.relationship}."
+        f"Relationship={ctx.deps.relationship}{budget_info}."
     )

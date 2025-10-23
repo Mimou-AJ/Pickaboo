@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, status
 from .models import QuestionResponse, SuggestedQuestion, BulkAnswerRequest, BulkAnswerResponse
 from .service import QuestionService, get_question_service
-from ..auth.service import get_current_user
-from ..entities.user import User
 import uuid
 from typing import List
 
@@ -15,7 +13,6 @@ router = APIRouter(
 def get_questions(
     persona_id: uuid.UUID,
     service: QuestionService = Depends(get_question_service),
-    current_user: User = Depends(get_current_user),
 ):
     return service.get_questions(persona_id)
 
@@ -23,6 +20,5 @@ def get_questions(
 def submit_answers(
     request: BulkAnswerRequest,
     service: QuestionService = Depends(get_question_service),
-    current_user: User = Depends(get_current_user),
 ):
     return service.submit_bulk_answers(request)

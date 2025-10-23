@@ -5,7 +5,6 @@ from fastapi.testclient import TestClient
 from fastapi import status
 
 from src.questions.models import BulkAnswerRequest, QuestionAnswerItem
-from src.questions.answer_choice import AnswerChoice
 
 
 @pytest.fixture
@@ -247,12 +246,12 @@ class TestBulkAnswerController:
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
-class TestAnswerChoiceValidation:
-    """Test answer choice validation in different scenarios"""
+class TestAnswerTextValidation:
+    """Test answer text validation in different scenarios"""
     
     def test_all_valid_answer_choices(self):
-        """Test that all AnswerChoice enum values work in requests"""
-        valid_choices = ["yes", "probably", "probably_not", "no"]
+        """Test that various answer choice texts work in requests"""
+        valid_choices = ["Yes", "Probably", "Probably not", "No", "Maybe", "Definitely"]
         
         for choice in valid_choices:
             item = QuestionAnswerItem(

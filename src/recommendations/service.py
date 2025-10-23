@@ -1,7 +1,6 @@
 from ..database.core import DbSession
 from ..build_persona.entity import Persona
 from ..questions.entity import Question, Answer
-from ..questions.answer_choice import AnswerChoice
 from .models import (
     PersonaProfile, 
     QuestionInsight, 

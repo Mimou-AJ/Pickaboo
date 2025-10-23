@@ -4,8 +4,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from src.questions.service import QuestionService
-from src.questions.models import BulkAnswerRequest, QuestionAnswerItem, AnswerRequest
-from src.questions.answer_choice import AnswerChoice
+from src.questions.models import BulkAnswerRequest, QuestionAnswerItem, AnswerResponse
 from src.questions.entity import Question, Answer
 
 
@@ -46,7 +45,7 @@ class TestBulkAnswerSubmission:
         for i, question in enumerate(sample_questions):
             answer_items.append(QuestionAnswerItem(
                 question_id=question.id,
-                answer_choice=AnswerChoice.yes if i % 2 == 0 else AnswerChoice.no
+                answer_choice="Yes" if i % 2 == 0 else "No"
             ))
         
         bulk_request = BulkAnswerRequest(answers=answer_items)
@@ -91,8 +90,8 @@ class TestBulkAnswerSubmission:
         # Verify all answers have IDs and correct choices
         for i, answer_response in enumerate(result.answers):
             assert answer_response.id is not None
-            expected_choice = AnswerChoice.yes if i % 2 == 0 else AnswerChoice.no
-            assert answer_response.answer_choice == expected_choice
+            expected_choice = "Yes" if i % 2 == 0 else "No"
+            assert answer_response.selected_choice == expected_choice
 
     def test_submit_bulk_answers_with_invalid_questions(self, mock_session):
         """Test bulk submission with some invalid question IDs"""
@@ -122,8 +121,8 @@ class TestBulkAnswerSubmission:
         
         # Create request with valid and invalid question IDs
         answer_items = [
-            QuestionAnswerItem(question_id=valid_question_id, answer_choice=AnswerChoice.yes),
-            QuestionAnswerItem(question_id=invalid_question_id, answer_choice=AnswerChoice.no)
+            QuestionAnswerItem(question_id=valid_question_id, answer_choice="Yes"),
+            QuestionAnswerItem(question_id=invalid_question_id, answer_choice="No")
         ]
         bulk_request = BulkAnswerRequest(answers=answer_items)
         
@@ -142,7 +141,7 @@ class TestBulkAnswerSubmission:
         # Should only process valid question
         assert result.submitted_count == 1
         assert len(result.answers) == 1
-        assert result.answers[0].answer_choice == AnswerChoice.yes
+        assert result.answers[0].selected_choice == "Yes"
 
     def test_submit_bulk_answers_empty_request(self, mock_session):
         """Test bulk submission with empty answers list"""
@@ -167,17 +166,17 @@ class TestAnswerModels:
         """Test QuestionAnswerItem model validation"""
         item = QuestionAnswerItem(
             question_id=uuid4(),
-            answer_choice=AnswerChoice.probably_not
+            answer_choice="Probably not"
         )
         
         assert item.question_id is not None
-        assert item.answer_choice == AnswerChoice.probably_not
+        assert item.answer_choice == "Probably not"
 
     def test_bulk_answer_request_validation(self):
         """Test BulkAnswerRequest model validation"""
         items = [
-            QuestionAnswerItem(question_id=uuid4(), answer_choice=AnswerChoice.yes),
-            QuestionAnswerItem(question_id=uuid4(), answer_choice=AnswerChoice.no)
+            QuestionAnswerItem(question_id=uuid4(), answer_choice="Yes"),
+            QuestionAnswerItem(question_id=uuid4(), answer_choice="No")
         ]
         
         request = BulkAnswerRequest(answers=items)
@@ -193,11 +192,11 @@ class TestAnswerModels:
 
     def test_bulk_answer_response_structure(self):
         """Test BulkAnswerResponse model structure"""
-        from src.questions.models import BulkAnswerResponse, AnswerResponse
+        from src.questions.models import BulkAnswerResponse
         
         answers = [
-            AnswerResponse(id=uuid4(), answer_choice=AnswerChoice.yes),
-            AnswerResponse(id=uuid4(), answer_choice=AnswerChoice.no)
+            AnswerResponse(id=uuid4(), selected_choice="Yes"),
+            AnswerResponse(id=uuid4(), selected_choice="No")
         ]
         
         response = BulkAnswerResponse(

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, AliasChoices, field_validator
-from typing import List
+from typing import List, Optional
 
 
 class GiftDependencies(BaseModel):
@@ -7,6 +7,7 @@ class GiftDependencies(BaseModel):
     gender: str
     occasion: str
     relationship: str
+    budget: Optional[str] = None
 
 
 class GiftQuestions(BaseModel):

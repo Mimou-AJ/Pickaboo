@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from ..database.core import get_db
-from ..auth.service import get_current_user
-from ..auth.models import TokenData
 from .service import get_recommendation_service, RecommendationService
 from .models import RecommendationRequest, RecommendationResponse
 from uuid import UUID
@@ -14,7 +12,6 @@ async def get_gift_recommendations(
     persona_id: UUID,
     max_recommendations: int = 5,
     include_reasoning: bool = True,
-    current_user: TokenData = Depends(get_current_user),
     session = Depends(get_db)
 ):
     """
@@ -46,7 +43,6 @@ async def get_gift_recommendations(
 @router.get("/personas/{persona_id}/profile", response_model=dict)
 async def get_persona_profile_summary(
     persona_id: UUID,
-    current_user: TokenData = Depends(get_current_user),
     session = Depends(get_db)
 ):
     """

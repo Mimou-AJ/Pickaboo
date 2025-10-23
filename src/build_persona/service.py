@@ -1,18 +1,14 @@
 from .models import PersonaRequest, PersonaResponse
 from .entity import Persona
 from ..database.core import DbSession
-from ..auth.service import get_current_user
-from ..auth.models import TokenData
-from fastapi import Depends
 
 
 class PersonaService:
     def __init__(self, session: DbSession):
         self.session = session
 
-    def create_persona_request(self, request: PersonaRequest, user: TokenData) -> PersonaResponse:
+    def create_persona_request(self, request: PersonaRequest) -> PersonaResponse:
         persona = Persona(
-            user_id=user.user_id,
             occasion=request.occasion,
             age=request.age,  # updated: replaced age_range
             budget=request.budget,

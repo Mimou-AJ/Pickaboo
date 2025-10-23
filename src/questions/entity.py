@@ -1,10 +1,9 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 from datetime import datetime, timezone
 from ..database.core import Base
 from ..build_persona.entity import Persona
-from .answer_choice import AnswerChoice
 
 class Question(Base):
     __tablename__ = 'questions'
@@ -23,7 +22,6 @@ class Answer(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     question_id = Column(UUID(as_uuid=True), ForeignKey('questions.id'), nullable=False)
-    answer_choice = Column(Enum(AnswerChoice), nullable=False)  # Keep enum for analysis
     selected_choice_text = Column(Text, nullable=False)  # Store the actual choice text selected
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
