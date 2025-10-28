@@ -12,12 +12,14 @@ from .agent import gift_recommendation_agent
 from typing import List, Dict
 from uuid import UUID
 import asyncio
+from ..messages.repository import MessageRepository
 
 class RecommendationService:
     """Service to generate personalized gift recommendations"""
     
     def __init__(self, session: DbSession):
         self.session = session
+        self.message_repo = MessageRepository(session)
     
     async def get_recommendations(self, request: RecommendationRequest) -> RecommendationResponse:
         """Generate gift recommendations for a persona based on all collected data"""
@@ -25,14 +27,17 @@ class RecommendationService:
         # 1. Build complete profile from persona + question answers
         profile = self._build_persona_profile(request.persona_id)
         
-        # 2. Generate recommendations using the AI agent
-        recommendations = await gift_recommendation_agent.generate_recommendations(profile)
+        # 2. Load message history from repository
+        message_history = await self.message_repo.load_all_messages(request.persona_id)
         
-        # 3. Limit to requested number and calculate confidence
+        # 3. Generate recommendations using the AI agent with conversation context
+        recommendations = await gift_recommendation_agent.generate_recommendations(profile, message_history)
+        
+        # 4. Limit to requested number and calculate confidence
         limited_recommendations = recommendations[:request.max_recommendations]
         confidence_level = self._calculate_confidence_level(limited_recommendations, len(profile.question_insights))
         
-        # 4. Build recipient summary
+        # 5. Build recipient summary
         recipient_summary = self._build_recipient_summary(profile)
         
         return RecommendationResponse(

@@ -9,7 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the project files
 COPY src/ src/
-COPY full_dataset.json .
 
 # Expose the port FastAPI runs on
 EXPOSE 8000

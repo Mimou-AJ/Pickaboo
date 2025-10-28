@@ -6,13 +6,17 @@ import uuid
 from typing import List, Dict
 import asyncio
 
-from ..questions_agent.detective import gift_detective
+from ..questions_agent.detective import gift_detective, get_initial_system_prompt, get_followup_prompt
 from ..questions_agent.models import GiftDependencies
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, UserPromptPart, TextPart
+from pydantic_ai import ModelMessagesTypeAdapter
+from ..messages.repository import MessageRepository
 
 
 class QuestionService:
     def __init__(self, session):
         self.session = session
+        self.message_repo = MessageRepository(session)
 
     def get_questions(self, persona_id: uuid.UUID) -> List[Dict]:
         persona = self.session.query(Persona).filter(Persona.id == persona_id).one()
@@ -28,6 +32,9 @@ class QuestionService:
             }
             budget_display = budget_map.get(persona.budget.value, persona.budget.value)
 
+        # Load message history using the repository
+        message_history = asyncio.run(self.message_repo.load_all_messages(persona_id))
+
         deps = GiftDependencies(
             age=persona.age,
             gender=persona.gender.value if persona.gender else "unknown",
@@ -36,9 +43,24 @@ class QuestionService:
             budget=budget_display,
         )
 
+        # Use different prompts based on whether we have message history
+        if message_history:
+            # Follow-up questions: history already contains context, just ask for more questions
+            prompt = get_followup_prompt()
+        else:
+            # Initial questions: include full system prompt with profile
+            prompt = get_initial_system_prompt(deps)
+
+        # Use native Pydantic AI message_history parameter
         result = asyncio.run(
-            gift_detective.run("Help me figure out the best questions to ask. max 5 questions.", deps=deps)
+            gift_detective.run(prompt, deps=deps, message_history=message_history)
         )
+
+        # Store the new messages (both request and response)
+        asyncio.run(self.message_repo.store_messages(
+            persona_id, 
+            result.new_messages_json()
+        ))
 
         # Save each question to DB and return structured items with choices
         items: List[Dict] = []
@@ -68,6 +90,7 @@ class QuestionService:
     def submit_bulk_answers(self, request: BulkAnswerRequest) -> BulkAnswerResponse:
         """Submit multiple answers for different questions in one operation"""
         submitted_answers = []
+        user_messages: List[ModelMessage] = []
         
         for answer_item in request.answers:
             # Verify the question exists
@@ -77,6 +100,14 @@ class QuestionService:
             
             # Get the selected choice text
             selected_text = answer_item.answer_choice
+            
+            # Create message pair for history (agent asked, user answered)
+            user_messages.append(
+                ModelRequest(parts=[UserPromptPart(content=question.question_text)])
+            )
+            user_messages.append(
+                ModelResponse(parts=[TextPart(content=selected_text)])
+            )
             
             # Create and save the answer
             answer = Answer(
@@ -91,6 +122,18 @@ class QuestionService:
                 id=answer.id,
                 selected_choice=answer.selected_choice_text
             ))
+        
+        # Store the user's answers in message history
+        if user_messages:
+            # Get persona_id from the first question
+            first_question = self.session.query(Question).filter(
+                Question.id == request.answers[0].question_id
+            ).first()
+            if first_question:
+                asyncio.run(self.message_repo.store_messages(
+                    first_question.persona_id,
+                    ModelMessagesTypeAdapter.dump_json(user_messages)
+                ))
         
         return BulkAnswerResponse(
             submitted_count=len(submitted_answers),

@@ -95,15 +95,53 @@ pytest tests/test_recommendations.py
 
 The system uses two AI agents powered by pydantic-ai:
 
-1. **Gift Detective**: Generates smart questions based on recipient profile (age, gender, occasion, relationship, budget)
-2. **Gift Recommendation Agent**: Analyzes answers and persona to suggest perfect gifts
+1. **Gift Detective**: Generates smart questions based on recipient profile (age, gender, occasion, relationship, budget) and **conversation history**
+   - **First Round**: Asks 3 broad questions to understand basic preferences
+   - **Second Round**: Asks 3 deeper, more specific follow-up questions based on the first answers
+   - Remembers all previous questions and answers for each persona
+   - Avoids repeating similar questions
+   - Builds a complete understanding of the recipient over two rounds
+
+2. **Gift Recommendation Agent**: Analyzes all answers and persona to suggest perfect gifts
+
+### Two-Round Question System
+
+The system uses a strategic two-round approach:
+
+**Round 1 - Broad Discovery (3 questions)**
+- Asked immediately after creating a persona
+- General questions to understand basic preferences
+- Example: "Does she prefer practical or decorative items?"
+
+**Round 2 - Deep Dive (3 questions)**
+- Asked after answering the first 3 questions
+- Specific follow-ups based on Round 1 answers
+- Example: If she likes decorative items → "What's her home decor style?"
+
+**Example Flow:**
+```
+Create persona → Get 3 initial questions
+├─ Q1: "Does she like jewelry?"
+├─ Q2: "Is she into tech gadgets?"
+└─ Q3: "Does she prefer experiences or physical gifts?"
+
+Answer 3 questions
+├─ A1: "Yes, especially necklaces"
+├─ A2: "Not really"
+└─ A3: "Physical gifts"
+
+Get 3 deeper questions (based on answers)
+├─ Q4: "What style of necklaces does she prefer?" (builds on A1)
+├─ Q5: "Does she like home decor items?" (follows from A2/A3)
+└─ Q6: "What's her favorite metal tone?" (deeper into A1)
+```
 
 ## 💾 Database Schema
 
 - **Personas**: Recipient profiles with demographics and budget
 - **Questions**: AI-generated questions with multiple-choice options (stored as JSONB)
-- **Answers**: User responses linked to questions
-- **Recommendations**: Generated gift suggestions
+- **Answers**: User responses linked to questions and personas
+- **Conversation History**: Each persona maintains a complete history of questions and answers for contextual AI interactions
 
 ## 🛠️ Tech Stack
 

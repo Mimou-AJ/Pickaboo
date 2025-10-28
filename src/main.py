@@ -3,6 +3,7 @@ import os
 from .database.core import engine, Base
 from .build_persona.entity import Persona # Import models to register them
 from .questions.entity import Question, Answer # Import models to register them
+from .messages.entity import MessageHistory # Import models to register them
 from .api import register_routes
 from .logging import configure_logging, LogLevels
 

@@ -13,21 +13,20 @@ class GiftDependencies(BaseModel):
 class GiftQuestions(BaseModel):
     class QuestionItem(BaseModel):
         question: str = Field(
-            description="A concise, clear question phrased in the third person (he/she)",
-            validation_alias=AliasChoices("question", "queation"),
+            description="A concise, clear question phrased in the third person (he/she)"
         )
         choices: List[str] = Field(
             description=(
-                "Clickable suggestions/options for the question, 3-5 short, mutually exclusive items. "
+                "Clickable suggestions/options for the question, 4 items: 3 specific choices PLUS 'None of the above'. "
                 "These are UI-friendly answer options, not free text."
             )
         )
 
         @field_validator("choices", mode="before")
         @classmethod
-        def ensure_three_clean_choices(cls, v):
+        def ensure_four_clean_choices(cls, v):
             if not isinstance(v, list):
-                return ["Yes", "Maybe", "No"]
+                return ["Yes", "Maybe", "No", "None of the above"]
             # sanitize, dedupe preserving order, drop empties, strip punctuation tail
             seen = set()
             cleaned = []
@@ -45,17 +44,17 @@ class GiftQuestions(BaseModel):
                     continue
                 seen.add(s.lower())
                 cleaned.append(s)
-                if len(cleaned) == 3:
+                if len(cleaned) == 4:
                     break
-            # pad if less than 3
-            defaults = ["Yes", "Maybe", "No"]
+            # pad if less than 4
+            defaults = ["Yes", "Maybe", "No", "None of the above"]
             i = 0
-            while len(cleaned) < 3 and i < len(defaults):
+            while len(cleaned) < 4 and i < len(defaults):
                 if defaults[i].lower() not in seen:
                     cleaned.append(defaults[i])
                 i += 1
-            # ensure exactly 3
-            return cleaned[:3]
+            # ensure exactly 4
+            return cleaned[:4]
 
     questions: List[QuestionItem] = Field(
         description="List of smart questions with suggested clickable choices"
