@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jinny: The Gift Genie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@700;800&family=Satoshi:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              figtree: ['Figtree', 'sans-serif'],
+              satoshi: ['Satoshi', 'sans-serif'],
+            },
+            colors: {
+              'midnight-blue': '#1E2761',
+              'royal-blue': '#408EC6',
+              'off-white': '#FCF6F5',
+              'jinny-pink': '#D02670',
+              'jinny-gold': '#FEE715',
+            },
+            animation: {
+              'float': 'float 6s ease-in-out infinite',
+              'fade-in': 'fadeIn 0.8s ease-in-out',
+              'fade-out': 'fadeOut 0.8s ease-in-out forwards',
+              'sparkle': 'sparkle 2s ease-in-out infinite alternate',
+              'bubble-pop': 'bubblePop 0.5s ease-out forwards',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
+              },
+              fadeIn: {
+                '0%': { opacity: 0, transform: 'translateY(10px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
+              fadeOut: {
+                '0%': { opacity: 1, transform: 'translateY(0)' },
+                '100%': { opacity: 0, transform: 'translateY(-10px)' },
+              },
+              sparkle: {
+                '0%': { opacity: 0.1, transform: 'scale(0.5) rotate(0deg)' },
+                '50%': { opacity: 1, transform: 'scale(1.2) rotate(180deg)' },
+                '100%': { opacity: 0.1, transform: 'scale(0.5) rotate(360deg)' },
+              },
+              bubblePop: {
+                '0%': { opacity: 0, transform: 'scale(0.8) translateY(10px)' },
+                '100%': { opacity: 1, transform: 'scale(1) translateY(0)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Additional styles for scrollbars if needed */
+      body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      body::-webkit-scrollbar {
+        display: none;
+      }
+      
+      /* Custom styles for the range slider */
+      .custom-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 8px;
+        background: rgba(30, 39, 97, 0.5); /* midnight-blue with opacity */
+        border-radius: 5px;
+        outline: none;
+        transition: opacity 0.2s;
+      }
+
+      .custom-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        background: #D02670; /* jinny-pink */
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid #FCF6F5; /* off-white */
+        box-shadow: 0 0 10px rgba(208, 38, 112, 0.7);
+      }
+
+      .custom-slider::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        background: #D02670; /* jinny-pink */
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid #FCF6F5; /* off-white */
+        box-shadow: 0 0 10px rgba(208, 38, 112, 0.7);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
