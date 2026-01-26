@@ -16,10 +16,27 @@ class EmbeddingService:
         Args:
             model_name: Name of the sentence-transformers model to use
         """
-        logger.info(f"Loading embedding model: {model_name}")
-        self.model = SentenceTransformer(model_name)
-        self.embedding_dim = self.model.get_sentence_embedding_dimension()
-        logger.info(f"Model loaded. Embedding dimension: {self.embedding_dim}")
+        self.model_name = model_name
+        self._model = None
+        self._embedding_dim = None
+    
+    @property
+    def model(self):
+        """Lazy-load the sentence transformer model."""
+        if self._model is None:
+            logger.info(f"Loading embedding model: {self.model_name}")
+            self._model = SentenceTransformer(self.model_name)
+            self._embedding_dim = self._model.get_sentence_embedding_dimension()
+            logger.info(f"Model loaded. Embedding dimension: {self._embedding_dim}")
+        return self._model
+    
+    @property
+    def embedding_dim(self):
+        """Get embedding dimension (triggers model load if not loaded)."""
+        if self._embedding_dim is None:
+            # Trigger model load
+            _ = self.model
+        return self._embedding_dim
     
     def build_product_text(self, product: Dict) -> str:
         """
