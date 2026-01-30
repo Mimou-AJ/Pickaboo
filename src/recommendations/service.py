@@ -13,6 +13,8 @@ from typing import List, Dict
 from uuid import UUID
 import asyncio
 from ..messages.repository import MessageRepository
+from ..products.matching_service import ProductMatchingService
+from ..products.models import MatchedProductResponse
 
 class RecommendationService:
     """Service to generate personalized gift recommendations"""
@@ -20,6 +22,7 @@ class RecommendationService:
     def __init__(self, session: DbSession):
         self.session = session
         self.message_repo = MessageRepository(session)
+        self.product_matcher = ProductMatchingService(session)
     
     async def get_recommendations(self, request: RecommendationRequest) -> RecommendationResponse:
         """Generate gift recommendations for a persona based on all collected data"""
@@ -30,14 +33,45 @@ class RecommendationService:
         # 2. Load message history from repository
         message_history = await self.message_repo.load_all_messages(request.persona_id)
         
-        # 3. Generate recommendations using the AI agent with conversation context
+        # 3. Try RAG pipeline with real products first
+        persona = self.session.query(Persona).filter(Persona.id == request.persona_id).first()
+        if persona and persona.budget:
+            budget_range = self._get_budget_range(persona.budget.value)
+            
+            try:
+                # Get matched products from RAG pipeline
+                matched_products = await self.product_matcher.find_gifts(
+                    profile=profile,
+                    budget_range=budget_range,
+                    top_k=request.max_recommendations
+                )
+                
+                # If we got real products, use them
+                if matched_products:
+                    recommendations = self._convert_products_to_recommendations(matched_products)
+                    confidence_level = self._calculate_confidence_level(recommendations, len(profile.question_insights))
+                    recipient_summary = self._build_recipient_summary(profile)
+                    
+                    return RecommendationResponse(
+                        persona_id=request.persona_id,
+                        recipient_summary=recipient_summary,
+                        recommendations=recommendations,
+                        total_recommendations=len(recommendations),
+                        confidence_level=confidence_level
+                    )
+            except Exception as e:
+                # Log error but continue to fallback
+                import logging
+                logging.warning(f"RAG pipeline failed, falling back to LLM-only: {e}")
+        
+        # 4. Fallback: Generate recommendations using the AI agent (LLM-only)
         recommendations = await gift_recommendation_agent.generate_recommendations(profile, message_history)
         
-        # 4. Limit to requested number and calculate confidence
+        # 5. Limit to requested number and calculate confidence
         limited_recommendations = recommendations[:request.max_recommendations]
         confidence_level = self._calculate_confidence_level(limited_recommendations, len(profile.question_insights))
         
-        # 5. Build recipient summary
+        # 6. Build recipient summary
         recipient_summary = self._build_recipient_summary(profile)
         
         return RecommendationResponse(
@@ -149,6 +183,80 @@ class RecommendationService:
             return f"{base_summary} {insights_text}"
         
         return base_summary
+    
+    def _get_budget_range(self, budget: str) -> tuple:
+        """
+        Convert budget enum to price range tuple.
+        
+        Args:
+            budget: Budget enum value (e.g., "under_25")
+            
+        Returns:
+            Tuple of (min_price, max_price)
+        """
+        budget_map = {
+            "under_25": (0, 25),
+            "25-50": (25, 50),
+            "50-100": (50, 100),
+            "over_100": (100, 10000)
+        }
+        return budget_map.get(budget, (0, 10000))
+    
+    def _convert_products_to_recommendations(
+        self, 
+        matched_products: List[MatchedProductResponse]
+    ) -> List[GiftRecommendation]:
+        """
+        Convert matched products to gift recommendations.
+        
+        Args:
+            matched_products: List of matched products from RAG pipeline
+            
+        Returns:
+            List of gift recommendations
+        """
+        recommendations = []
+        
+        for product in matched_products:
+            # Format price range
+            if product.price_min and product.price_max:
+                price_range = f"€{product.price_min:.2f} - €{product.price_max:.2f}"
+            elif product.price_eur:
+                price_range = f"€{product.price_eur:.2f}"
+            else:
+                price_range = "Price not available"
+            
+            # Build description
+            description_parts = []
+            if product.vendor:
+                description_parts.append(f"by {product.vendor}")
+            if product.product_type:
+                description_parts.append(product.product_type)
+            if product.colors:
+                description_parts.append(f"Available in {', '.join(product.colors[:3])}")
+            
+            description = ". ".join(description_parts) if description_parts else "No description available"
+            
+            # Determine category from tags or product type
+            category = product.product_type if product.product_type else "General Gift"
+            
+            # Build purchase links
+            purchase_links = []
+            if product.product_url:
+                purchase_links.append(product.product_url)
+            
+            recommendation = GiftRecommendation(
+                title=product.name,
+                description=description,
+                price_range=price_range,
+                reasoning=product.match_reasoning,
+                confidence_score=product.confidence,
+                category=category,
+                purchase_links=purchase_links if purchase_links else None
+            )
+            recommendations.append(recommendation)
+        
+        return recommendations
 
 def get_recommendation_service(session: DbSession) -> RecommendationService:
     return RecommendationService(session)
