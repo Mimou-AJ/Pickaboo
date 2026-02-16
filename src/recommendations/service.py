@@ -131,18 +131,24 @@ class RecommendationService:
         """Categorize a question to help with analysis"""
         question_lower = question_text.lower()
         
-        if any(word in question_lower for word in ["hobby", "free time", "weekend", "activity", "sport"]):
-            return "interests"
-        elif any(word in question_lower for word in ["style", "fashion", "look", "wear", "outfit"]):
-            return "style"
-        elif any(word in question_lower for word in ["food", "eat", "drink", "cuisine", "restaurant"]):
-            return "lifestyle"
-        elif any(word in question_lower for word in ["music", "movie", "book", "entertainment"]):
-            return "entertainment"
-        elif any(word in question_lower for word in ["travel", "vacation", "trip", "place"]):
-            return "travel"
-        else:
-            return "preferences"
+        categories = [
+            (["hobby", "free time", "weekend", "activity", "sport", "passion", "spare time"], "interests"),
+            (["style", "fashion", "look", "wear", "outfit", "aesthetic", "minimalist", "decor", "design"], "style"),
+            (["food", "eat", "drink", "cuisine", "restaurant", "cook", "baking", "recipe"], "lifestyle"),
+            (["music", "movie", "book", "entertainment", "watch", "listen", "read", "game", "gaming"], "entertainment"),
+            (["travel", "vacation", "trip", "place", "adventure", "explore", "outdoor"], "travel"),
+            (["routine", "morning", "day look", "typical day", "daily", "work", "relax"], "daily_routine"),
+            (["personality", "describe", "kind of person", "value", "practical", "sentimental"], "personality"),
+            (["want", "need", "wish", "lack", "missing", "mention", "dream"], "unmet_wants"),
+            (["tech", "gadget", "device", "smart", "electronic"], "technology"),
+            (["gift", "present", "surprise", "occasion"], "gifting"),
+        ]
+        
+        for keywords, category in categories:
+            if any(word in question_lower for word in keywords):
+                return category
+        
+        return "preferences"
     
     def _calculate_confidence_level(self, recommendations: List[GiftRecommendation], insights_count: int) -> str:
         """Calculate overall confidence level based on recommendations and data quality"""
@@ -167,19 +173,27 @@ class RecommendationService:
     def _build_recipient_summary(self, profile: PersonaProfile) -> str:
         """Build a natural language summary of the recipient"""
         
-        insights_summary = []
-        for insight in profile.question_insights:
-            insights_summary.append(f"chose '{insight.selected_choice}' when asked about {insight.question.lower()}")
-        
         base_summary = f"The recipient is a {profile.age}-year-old {profile.gender}."
+        occasion_context = f" This gift is for {profile.occasion} from their {profile.relationship}."
+        if profile.budget:
+            occasion_context += f" Budget: {profile.budget}."
         
-        if insights_summary:
-            insights_text = "Based on their responses, they " + ", and they ".join(insights_summary[:3])
-            if len(insights_summary) > 3:
-                insights_text += f", among other preferences."
-            return f"{base_summary} {insights_text}"
+        positive_insights = []
+        negative_insights = []
+        for insight in profile.question_insights:
+            if "none of the above" in insight.selected_choice.lower():
+                rejected = [c for c in insight.available_choices if "none of the above" not in c.lower()]
+                negative_insights.append(f"not into {', '.join(rejected)}")
+            else:
+                positive_insights.append(f"{insight.selected_choice.lower()}")
         
-        return base_summary
+        summary = base_summary + occasion_context
+        if positive_insights:
+            summary += f" They are into: {', '.join(positive_insights)}."
+        if negative_insights:
+            summary += f" They are {', and '.join(negative_insights)}."
+        
+        return summary
 
     def _get_budget_range(self, budget: Optional[str]) -> Tuple[float, float]:
         """
@@ -240,7 +254,8 @@ class RecommendationService:
                 reasoning=product.match_reasoning,
                 confidence_score=product.confidence,
                 category=category,
-                purchase_links=purchase_links if purchase_links else None
+                purchase_links=purchase_links if purchase_links else None,
+                image_url=product.image_url
             )
             recommendations.append(recommendation)
         

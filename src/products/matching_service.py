@@ -102,6 +102,9 @@ Be thoughtful, specific, and personalized in your reasoning. Avoid generic expla
         """
         Build semantic search query from recipient profile.
         
+        Constructs a rich, multi-faceted query that combines demographics,
+        occasion context, and all Q&A insights for better vector matching.
+        
         Args:
             profile: Recipient profile
             
@@ -110,18 +113,30 @@ Be thoughtful, specific, and personalized in your reasoning. Avoid generic expla
         """
         parts = []
         
-        # Basic demographics
-        parts.append(f"Gift for {profile.age} year old {profile.gender}")
+        # Occasion + relationship context sets the gift category tone
+        parts.append(f"Gift for {profile.age} year old {profile.gender} {profile.occasion} from {profile.relationship}")
         
-        # Occasion and relationship
-        parts.append(profile.occasion)
-        parts.append(profile.relationship)
+        # Budget hint for price-tier matching
+        if profile.budget:
+            parts.append(f"budget {profile.budget}")
         
-        # Extract insights from Q&A, filtering out "None of the above"
+        # Extract positive signals from Q&A (skip "None of the above")
+        positive_signals = []
+        negative_signals = []
         for insight in profile.question_insights:
             choice = insight.selected_choice
-            if choice and "none of the above" not in choice.lower():
-                parts.append(choice)
+            if not choice:
+                continue
+            if "none of the above" in choice.lower():
+                # Track what was rejected so we can avoid those categories
+                rejected = [c for c in insight.available_choices if "none of the above" not in c.lower()]
+                negative_signals.extend(rejected)
+            else:
+                positive_signals.append(choice)
+        
+        # Add positive signals as direct query terms
+        if positive_signals:
+            parts.append(" ".join(positive_signals))
         
         query = " | ".join(parts)
         return query
@@ -149,7 +164,7 @@ Be thoughtful, specific, and personalized in your reasoning. Avoid generic expla
         try:
             # Call LLM agent
             result = await self.reranker.run(prompt)
-            matched_products = result.data
+            matched_products = result.output
             
             # Limit to top_k
             return matched_products[:top_k]
@@ -183,16 +198,30 @@ Be thoughtful, specific, and personalized in your reasoning. Avoid generic expla
         prompt_parts.append(f"Age: {profile.age}")
         prompt_parts.append(f"Gender: {profile.gender}")
         prompt_parts.append(f"Occasion: {profile.occasion}")
-        prompt_parts.append(f"Relationship: {profile.relationship}")
+        prompt_parts.append(f"Relationship (buyer → recipient): {profile.relationship}")
         if profile.budget:
             prompt_parts.append(f"Budget: {profile.budget}")
         
-        # Q&A insights
+        # Q&A insights with positive/negative signal analysis
         if profile.question_insights:
-            prompt_parts.append("\n=== PREFERENCES & INTERESTS ===")
+            prompt_parts.append("\n=== WHAT WE KNOW (from Q&A) ===")
+            positive_insights = []
+            negative_insights = []
             for insight in profile.question_insights:
-                prompt_parts.append(f"- {insight.question}")
-                prompt_parts.append(f"  Answer: {insight.selected_choice}")
+                if "none of the above" in insight.selected_choice.lower():
+                    rejected = [c for c in insight.available_choices if "none of the above" not in c.lower()]
+                    negative_insights.append(f"  Q: {insight.question}")
+                    negative_insights.append(f"     REJECTED all of: {', '.join(rejected)}")
+                else:
+                    positive_insights.append(f"  Q: {insight.question}")
+                    positive_insights.append(f"     ✓ Chose: {insight.selected_choice}  (over: {', '.join(c for c in insight.available_choices if c != insight.selected_choice and 'none of the above' not in c.lower())})")
+            
+            if positive_insights:
+                prompt_parts.append("\nPOSITIVE SIGNALS (recipient actively chose these):")
+                prompt_parts.extend(positive_insights)
+            if negative_insights:
+                prompt_parts.append("\nNEGATIVE SIGNALS (recipient rejected ALL options — AVOID similar products):")
+                prompt_parts.extend(negative_insights)
         
         # Candidate products
         prompt_parts.append(f"\n=== CANDIDATE PRODUCTS (select best {top_k}) ===")
@@ -206,19 +235,28 @@ Be thoughtful, specific, and personalized in your reasoning. Avoid generic expla
                 prompt_parts.append(f"  Type: {product.product_type}")
             if product.price_eur:
                 prompt_parts.append(f"  Price: €{product.price_eur:.2f}")
+            if product.description:
+                prompt_parts.append(f"  Description: {product.description[:200]}")
             if product.colors:
                 prompt_parts.append(f"  Colors: {', '.join(product.colors[:5])}")
             if product.tags:
                 prompt_parts.append(f"  Tags: {', '.join(product.tags[:8])}")
-            prompt_parts.append(f"  Similarity Score: {similarity:.3f}")
+            prompt_parts.append(f"  Semantic Score: {similarity:.3f}")
         
-        # Instructions
+        # Structured scoring instructions
+        prompt_parts.append(f"\n=== SCORING CRITERIA (use these to rank) ===")
+        prompt_parts.append("For each product, mentally score it on 4 axes (each 0.0–1.0):")
+        prompt_parts.append("  1. INTEREST MATCH — Does it align with the recipient's chosen hobbies/lifestyle/style?")
+        prompt_parts.append("  2. OCCASION FIT — Is it appropriate for the occasion and relationship?")
+        prompt_parts.append("  3. NEGATIVE AVOIDANCE — Does it steer clear of rejected categories?")
+        prompt_parts.append("  4. DELIGHT FACTOR — Would the recipient be genuinely surprised and happy?")
+        prompt_parts.append("\nFinal confidence = average of the 4 scores.")
+        
         prompt_parts.append(f"\n=== TASK ===")
-        prompt_parts.append(f"Select the top {top_k} products that best match this recipient.")
-        prompt_parts.append("For each product, provide:")
-        prompt_parts.append("1. match_reasoning: Detailed explanation of why this product suits THIS recipient")
-        prompt_parts.append("2. confidence: Score from 0.0 to 1.0 indicating match quality")
-        prompt_parts.append("\nBe specific and reference details from the recipient's profile.")
+        prompt_parts.append(f"Select the top {top_k} products. For each:")
+        prompt_parts.append("1. match_reasoning: 2–3 sentences referencing SPECIFIC profile signals that make this a match.")
+        prompt_parts.append("2. confidence: 0.0–1.0 based on the 4 scoring criteria above.")
+        prompt_parts.append("\nDo NOT select products that conflict with NEGATIVE signals.")
         
         return "\n".join(prompt_parts)
     

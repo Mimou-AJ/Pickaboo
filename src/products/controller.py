@@ -35,8 +35,9 @@ async def import_products(
     
     # Save uploaded file to temporary location
     with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.json') as tmp_file:
-        content = await file.read()
-        tmp_file.write(content)
+        # Stream the file content to disk to avoid memory issues with large files
+        while content := await file.read(1024 * 1024):  # 1MB chunks
+            tmp_file.write(content)
         tmp_path = tmp_file.name
     
     try:

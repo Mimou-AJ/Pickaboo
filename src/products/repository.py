@@ -22,7 +22,14 @@ class ProductRepository:
             embedding_service: Optional embedding service for queries (created if not provided)
         """
         self.session = session
-        self.embedding_service = embedding_service or EmbeddingService()
+        self._embedding_service = embedding_service
+
+    @property
+    def embedding_service(self) -> EmbeddingService:
+        """Lazy load embedding service only when needed."""
+        if self._embedding_service is None:
+            self._embedding_service = EmbeddingService()
+        return self._embedding_service
     
     def semantic_search(
         self,
@@ -71,13 +78,15 @@ class ProductRepository:
         
         # Execute vector similarity search
         # Using cosine distance operator <=> (lower is better, 0 = identical)
+        # Explicit type cast to vector is required because SQLAlchemy passes Python lists as arrays
+        # Use CAST() syntax to avoid conflict with SQLAlchemy bind parameter colon
         query_sql = text(f"""
             SELECT 
                 id,
-                1 - (embedding <=> :embedding) AS similarity
+                1 - (embedding <=> CAST(:embedding AS vector)) AS similarity
             FROM products
             WHERE {where_clause}
-            ORDER BY embedding <=> :embedding
+            ORDER BY embedding <=> CAST(:embedding AS vector)
             LIMIT :top_k
         """)
         

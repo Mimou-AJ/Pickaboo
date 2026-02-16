@@ -40,7 +40,7 @@ Migration completed successfully!
 ```bash
 # Import the example product data
 curl -X POST "http://localhost:8000/products/import" \
-  -F "file=@data/products_example.json"
+  -F "file=@data/products_small.json"
 ```
 
 Expected response:

@@ -23,7 +23,7 @@ class ProductResponse(BaseModel):
     sizes: Optional[List[str]] = None
     gender_target: Optional[str] = None
     tags: Optional[List[str]] = None
-    variants: Optional[Dict[str, Any]] = None
+    variants: Optional[List[Dict[str, Any]]] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
     created_at: datetime
