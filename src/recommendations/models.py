@@ -30,6 +30,7 @@ class GiftRecommendation(BaseModel):
     confidence_score: float  # 0.0 to 1.0
     category: str
     purchase_links: Optional[List[str]] = None
+    image_url: Optional[str] = None
 
 class RecommendationRequest(BaseModel):
     """Request for gift recommendations"""

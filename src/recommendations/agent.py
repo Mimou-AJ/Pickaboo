@@ -11,47 +11,30 @@ class GiftRecommendationAgent:
             "huggingface:deepseek-ai/DeepSeek-V3.1",
             output_type=List[GiftRecommendation],
             retries=2,
-            system_prompt="""You are an expert gift recommendation specialist with years of experience in personalized gifting.
+            system_prompt="""You are Jinny, a world-class gift recommendation specialist.
 
-You have been asking the user questions about the gift recipient to understand their preferences. 
-Now, based on ALL the conversation history (the questions you asked and the answers you received), 
-recommend the most suitable gifts.
+You have been profiling a gift recipient by asking targeted questions across 5 dimensions:
+lifestyle, hobbies, style, personality, and unmet wants.
 
-KEY PRINCIPLES:
-1. Review the ENTIRE conversation history - every question and answer matters
-2. The answers reveal specific interests, personality traits, and preferences
-3. When you see "None of the above" answers, pay attention - these tell you what the recipient is NOT interested in
-4. Match gifts to the recipient's lifestyle shown through their choices
-5. Consider the relationship context and occasion
-6. Respect the budget
+Your job is to recommend gifts that:
+1. MATCH positive signals — things the recipient actively chose or expressed interest in
+2. AVOID negative signals — when they answered "None of the above", they rejected ALL those options. Never recommend anything in those rejected categories.
+3. FIT the occasion and relationship (e.g., a Valentine's gift from a partner is different from a birthday gift from a colleague)
+4. RESPECT the budget strictly
+5. SURPRISE & DELIGHT — go beyond the obvious; combine multiple signals into creative gift ideas
 
-RECOMMENDATION CRITERIA:
-- Relevance: How well does the gift match their revealed interests?
-- Appropriateness: Is it suitable for the relationship and occasion?
-- Thoughtfulness: Does it show you understand them based on the conversation?
-- Avoidance: Don't recommend things related to topics where they answered "None of the above"
+For each recommendation, your reasoning MUST reference specific answers from the conversation.
+Bad reasoning: "This is a great gift for anyone."
+Good reasoning: "Since she chose 'yoga & meditation' for hobbies and 'minimalist' for style, this handcrafted meditation cushion fits perfectly."
 
-CRITICAL: You must respond with a JSON array of gift recommendations. Each recommendation must have exactly these fields:
-- title: string (short gift name)
-- description: string (detailed description)
-- price_range: string (e.g., "$20-50", "$100-200")
-- reasoning: string (why this fits based on what you learned from the conversation)
-- confidence_score: float (between 0.0 and 1.0)
-- category: string (gift category like "books", "electronics", etc.)
-
-Example format:
-[
-  {
-    "title": "Premium Book Set",
-    "description": "Curated collection of bestselling novels",
-    "price_range": "$30-60",
-    "reasoning": "Based on our conversation, they love reading and prefer fiction",
-    "confidence_score": 0.9,
-    "category": "books"
-  }
-]
-
-Remember: Use the conversation history to make truly personalized recommendations."""
+CRITICAL: You must respond with a JSON array. Each item must have exactly these fields:
+- title: string (concise gift name)
+- description: string (what it is and why it's special)
+- price_range: string (e.g., "€20-50") — MUST respect the budget
+- reasoning: string (2-3 sentences connecting the gift to specific Q&A answers)
+- confidence_score: float (0.0 to 1.0, based on how many profile signals this gift matches)
+- category: string (gift category)
+"""
         )
     
     async def generate_recommendations(
@@ -71,19 +54,34 @@ Remember: Use the conversation history to make truly personalized recommendation
     def _build_recommendation_prompt(self, profile: PersonaProfile) -> str:
         """Build a prompt that references the conversation history"""
         
-        prompt = f"""Based on our conversation above about the gift recipient, generate exactly 5 gift recommendations as a JSON array.
+        # Separate positive and negative signals
+        positive = []
+        negative = []
+        for insight in profile.question_insights:
+            if "none of the above" in insight.selected_choice.lower():
+                rejected = [c for c in insight.available_choices if "none of the above" not in c.lower()]
+                negative.append(f"  - Rejected: {', '.join(rejected)} (Q: {insight.question})")
+            else:
+                positive.append(f"  - {insight.selected_choice} (Q: {insight.question})")
 
-RECIPIENT SUMMARY:
-- Age: {profile.age}
-- Gender: {profile.gender}
-- Occasion: {profile.occasion}
-- Your Relationship: {profile.relationship}
-- Budget: {profile.budget if profile.budget else "flexible budget"}
+        prompt = f"""Based on our conversation, generate exactly 5 gift recommendations as a JSON array.
 
-TASK: Generate 5 gift recommendations based on what you learned from asking questions.
-- Each recommendation must include: title, description, price_range, reasoning, confidence_score (0.0-1.0), category
-- IMPORTANT: Ensure all price_range values respect the budget constraint
-- Reference specific answers from our conversation in your reasoning
+=== RECIPIENT ===
+Age: {profile.age}  |  Gender: {profile.gender}  |  Occasion: {profile.occasion}
+Relationship: {profile.relationship}  |  Budget: {profile.budget if profile.budget else 'flexible'}
+"""
+        if positive:
+            prompt += "\n=== POSITIVE SIGNALS (things they like) ===\n" + "\n".join(positive) + "\n"
+        if negative:
+            prompt += "\n=== NEGATIVE SIGNALS (AVOID these categories) ===\n" + "\n".join(negative) + "\n"
+
+        prompt += f"""
+=== INSTRUCTIONS ===
+- Generate 5 recommendations. Each must have: title, description, price_range, reasoning, confidence_score (0.0-1.0), category
+- price_range MUST respect the budget: {profile.budget if profile.budget else 'flexible'}
+- reasoning MUST cite specific positive signals above
+- Do NOT recommend anything related to negative signals
+- Aim for variety: cover different categories so the buyer has real choices
 """
         
         return prompt

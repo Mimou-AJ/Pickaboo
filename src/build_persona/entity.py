@@ -20,6 +20,7 @@ class Gender(str, enum.Enum):
     male = "male"
     female = "female"
     non_binary = "non-binary"
+    other = "other"
 
 
 class Relationship(str, enum.Enum):
@@ -28,6 +29,7 @@ class Relationship(str, enum.Enum):
     child = "child"
     sibling = "sibling"
     friend = "friend"
+    family = "family"
     colleague = "colleague"
     acquaintance = "acquaintance"
     other = "other"

@@ -9,10 +9,12 @@ from .models import (
     GiftRecommendation
 )
 from .agent import gift_recommendation_agent
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 from uuid import UUID
 import asyncio
 from ..messages.repository import MessageRepository
+from ..products.matching_service import ProductMatchingService
+from ..products.repository import ProductRepository
 
 class RecommendationService:
     """Service to generate personalized gift recommendations"""
@@ -20,6 +22,7 @@ class RecommendationService:
     def __init__(self, session: DbSession):
         self.session = session
         self.message_repo = MessageRepository(session)
+        self.product_matcher = ProductMatchingService(session)
     
     async def get_recommendations(self, request: RecommendationRequest) -> RecommendationResponse:
         """Generate gift recommendations for a persona based on all collected data"""
@@ -27,17 +30,45 @@ class RecommendationService:
         # 1. Build complete profile from persona + question answers
         profile = self._build_persona_profile(request.persona_id)
         
-        # 2. Load message history from repository
-        message_history = await self.message_repo.load_all_messages(request.persona_id)
+        # 2. Check if we have products in database (RAG pipeline)
+        product_repo = ProductRepository(self.session)
+        product_count = product_repo.count_products()
         
-        # 3. Generate recommendations using the AI agent with conversation context
+        if product_count > 0:
+            # Use RAG pipeline with real products
+            budget_range = self._get_budget_range(profile.budget)
+            
+            try:
+                matched_products = await self.product_matcher.find_gifts(
+                    profile=profile,
+                    budget_range=budget_range,
+                    top_k=request.max_recommendations
+                )
+                
+                if matched_products:
+                    # Convert matched products to GiftRecommendation format
+                    recommendations = self._convert_matched_products_to_recommendations(matched_products)
+                    confidence_level = self._calculate_confidence_level_from_products(matched_products)
+                    recipient_summary = self._build_recipient_summary(profile)
+                    
+                    return RecommendationResponse(
+                        persona_id=request.persona_id,
+                        recipient_summary=recipient_summary,
+                        recommendations=recommendations,
+                        total_recommendations=len(recommendations),
+                        confidence_level=confidence_level
+                    )
+            except Exception as e:
+                # Log error but fallback to LLM-only approach
+                import logging
+                logging.warning(f"RAG pipeline failed, falling back to LLM-only: {e}")
+        
+        # Fallback: Use original LLM-only approach when no products or RAG fails
+        message_history = await self.message_repo.load_all_messages(request.persona_id)
         recommendations = await gift_recommendation_agent.generate_recommendations(profile, message_history)
         
-        # 4. Limit to requested number and calculate confidence
         limited_recommendations = recommendations[:request.max_recommendations]
         confidence_level = self._calculate_confidence_level(limited_recommendations, len(profile.question_insights))
-        
-        # 5. Build recipient summary
         recipient_summary = self._build_recipient_summary(profile)
         
         return RecommendationResponse(
@@ -100,18 +131,24 @@ class RecommendationService:
         """Categorize a question to help with analysis"""
         question_lower = question_text.lower()
         
-        if any(word in question_lower for word in ["hobby", "free time", "weekend", "activity", "sport"]):
-            return "interests"
-        elif any(word in question_lower for word in ["style", "fashion", "look", "wear", "outfit"]):
-            return "style"
-        elif any(word in question_lower for word in ["food", "eat", "drink", "cuisine", "restaurant"]):
-            return "lifestyle"
-        elif any(word in question_lower for word in ["music", "movie", "book", "entertainment"]):
-            return "entertainment"
-        elif any(word in question_lower for word in ["travel", "vacation", "trip", "place"]):
-            return "travel"
-        else:
-            return "preferences"
+        categories = [
+            (["hobby", "free time", "weekend", "activity", "sport", "passion", "spare time"], "interests"),
+            (["style", "fashion", "look", "wear", "outfit", "aesthetic", "minimalist", "decor", "design"], "style"),
+            (["food", "eat", "drink", "cuisine", "restaurant", "cook", "baking", "recipe"], "lifestyle"),
+            (["music", "movie", "book", "entertainment", "watch", "listen", "read", "game", "gaming"], "entertainment"),
+            (["travel", "vacation", "trip", "place", "adventure", "explore", "outdoor"], "travel"),
+            (["routine", "morning", "day look", "typical day", "daily", "work", "relax"], "daily_routine"),
+            (["personality", "describe", "kind of person", "value", "practical", "sentimental"], "personality"),
+            (["want", "need", "wish", "lack", "missing", "mention", "dream"], "unmet_wants"),
+            (["tech", "gadget", "device", "smart", "electronic"], "technology"),
+            (["gift", "present", "surprise", "occasion"], "gifting"),
+        ]
+        
+        for keywords, category in categories:
+            if any(word in question_lower for word in keywords):
+                return category
+        
+        return "preferences"
     
     def _calculate_confidence_level(self, recommendations: List[GiftRecommendation], insights_count: int) -> str:
         """Calculate overall confidence level based on recommendations and data quality"""
@@ -136,19 +173,115 @@ class RecommendationService:
     def _build_recipient_summary(self, profile: PersonaProfile) -> str:
         """Build a natural language summary of the recipient"""
         
-        insights_summary = []
-        for insight in profile.question_insights:
-            insights_summary.append(f"chose '{insight.selected_choice}' when asked about {insight.question.lower()}")
-        
         base_summary = f"The recipient is a {profile.age}-year-old {profile.gender}."
+        occasion_context = f" This gift is for {profile.occasion} from their {profile.relationship}."
+        if profile.budget:
+            occasion_context += f" Budget: {profile.budget}."
         
-        if insights_summary:
-            insights_text = "Based on their responses, they " + ", and they ".join(insights_summary[:3])
-            if len(insights_summary) > 3:
-                insights_text += f", among other preferences."
-            return f"{base_summary} {insights_text}"
+        positive_insights = []
+        negative_insights = []
+        for insight in profile.question_insights:
+            if "none of the above" in insight.selected_choice.lower():
+                rejected = [c for c in insight.available_choices if "none of the above" not in c.lower()]
+                negative_insights.append(f"not into {', '.join(rejected)}")
+            else:
+                positive_insights.append(f"{insight.selected_choice.lower()}")
         
-        return base_summary
+        summary = base_summary + occasion_context
+        if positive_insights:
+            summary += f" They are into: {', '.join(positive_insights)}."
+        if negative_insights:
+            summary += f" They are {', and '.join(negative_insights)}."
+        
+        return summary
+
+    def _get_budget_range(self, budget: Optional[str]) -> Tuple[float, float]:
+        """
+        Convert budget string to price range tuple.
+        
+        Args:
+            budget: Budget string (e.g., "€25-€50")
+            
+        Returns:
+            Tuple of (min_price, max_price)
+        """
+        if not budget:
+            return (0, 10000)
+        
+        budget_map = {
+            "Less than €25": (0, 25),
+            "€25-€50": (25, 50),
+            "€50-€100": (50, 100),
+            "More than €100": (100, 10000)
+        }
+        
+        return budget_map.get(budget, (0, 10000))
+    
+    def _convert_matched_products_to_recommendations(
+        self, 
+        matched_products: List
+    ) -> List[GiftRecommendation]:
+        """
+        Convert MatchedProductResponse to GiftRecommendation format.
+        
+        Args:
+            matched_products: List of MatchedProductResponse
+            
+        Returns:
+            List of GiftRecommendation
+        """
+        recommendations = []
+        
+        for product in matched_products:
+            # Format price range
+            if product.price_eur:
+                price_range = f"€{product.price_eur:.2f}"
+            else:
+                price_range = "Price not available"
+            
+            # Build purchase links
+            purchase_links = []
+            if product.product_url:
+                purchase_links.append(product.product_url)
+            
+            # Determine category from product_type or tags
+            category = product.product_type if product.product_type else "Gift"
+            
+            recommendation = GiftRecommendation(
+                title=product.name,
+                description=f"{product.vendor or 'Quality product'} - {category}",
+                price_range=price_range,
+                reasoning=product.match_reasoning,
+                confidence_score=product.confidence,
+                category=category,
+                purchase_links=purchase_links if purchase_links else None,
+                image_url=product.image_url
+            )
+            recommendations.append(recommendation)
+        
+        return recommendations
+    
+    def _calculate_confidence_level_from_products(self, matched_products: List) -> str:
+        """
+        Calculate confidence level from matched products.
+        
+        Args:
+            matched_products: List of MatchedProductResponse
+            
+        Returns:
+            Confidence level string
+        """
+        if not matched_products:
+            return "low"
+        
+        avg_confidence = sum(p.confidence for p in matched_products) / len(matched_products)
+        
+        if avg_confidence >= 0.8:
+            return "high"
+        elif avg_confidence >= 0.6:
+            return "medium"
+        else:
+            return "low"
 
 def get_recommendation_service(session: DbSession) -> RecommendationService:
     return RecommendationService(session)
